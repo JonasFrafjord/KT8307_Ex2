@@ -1,0 +1,79 @@
+#
+# Nanomechanics exercise 2
+# 
+# MD tensile test of Ni
+# 
+
+#This line sets the output file to log.nanowire 
+log	  log.nanowire	
+
+
+# dimensions and boundary conditions
+dimension	3       #Setting the dimensions of the system
+#Setting the boundary conditions, where s is a shrinkwraped boundary condition
+    #A shrinkwraped BC is a force interaction from the boundaries/walls which 
+    #makes the walls able to expand. P is periodic boundary conditions
+boundary	s p s	
+# Chooses the units for the system. Full unit list is written in the manual
+units		metal	
+
+# create geometry
+# Chooses the unit cell as fcc, with lattice constant and orientation of atoms
+lattice		fcc 3.520 orient x 1 0 0 orient y 0 1 0 orient z 0 0 1	
+#Sets a box, which will be scaled to the lattice spacing
+region		box block 0 5 0 50 0 5 
+#Create a box which contains 1 atomtype
+create_box	1 box
+#Fills the box with atoms on the matrix
+create_atoms	1 box
+
+#Sets mass of atom type 1, to 58.71
+mass		1 58.71	
+
+#Declear a variable temp equal to 273
+variable	temp equal 273.0
+
+# force field
+#Chooses the Embedded-atom-model as the interacting potential between atoms
+pair_style	eam 
+#Chooses an input file where the potential is defined. Gives cut-off distance,
+    #and the remaining parameters which must be defined for the EAM potential.
+pair_coeff	* * Ni.eam    
+
+# properties to be computed for each atom at certain time intervals
+# Computes the per atom potetial energy
+compute		pot all pe/atom
+# Computes the pressure, a list of pressure in different directions.
+compute		pressure all pressure thermo_temp	  
+
+# Initial velocities from a Maxwell distribution for the specified temperature
+# Using the temperature and seed 887723, find the velocity 
+velocity	all create ${temp} 887723
+
+# fixes to be invoked throughout the simulation
+# The first fix updates the position and velocity from a canonical ensamble.
+    # the temperature damping factor is 0.1, and the drag coefficient is 2.0
+fix		1 all nvt temp ${temp} ${temp} 0.1 drag 2.0
+# takes 10 inputs, pressure in y direction, between 200 timesteps, 20 steps 
+    # appart, and calculates the stress in yy direction as an average.
+fix		pyy all ave/time 20 10 200 c_pressure[2]   
+
+# specify timestep and output of thermodynamic data and per-atom data
+# Sets timestep to 0.0015 ps
+timestep	0.0015
+# Print output every 200 steps
+thermo		200	
+# Print the following values
+thermo_style	custom step temp etotal press vol f_pyy ly	 
+
+# dumps, every 1000 timestep, the position and other properties of each atom
+dump		1 all custom 1000 dump.nanowire id type xs ys zs c_pot	
+
+# first run some thousand time-steps to relax the system initially
+
+run		10000
+
+# then, apply the stretching of the nanowire and run the system for a long time
+# Stretch every 10 timestep with strain rate of 0.0015
+fix		2 all deform 10 y erate 0.0015 
+run		100000
